@@ -171,6 +171,11 @@ package body Ada_Ml_Library is
       Perform_Op (OP_RELU);
    end Perform_ReLU;
 
+   procedure Perform_Conv2D is
+   begin
+      Perform_Op (OP_CONV);
+   end Perform_Conv2D;
+
    --"/=" is the inequality operator in Ada, not !=
    --Read status_reg[0]
    function Is_Busy return Boolean is
@@ -191,7 +196,6 @@ package body Ada_Ml_Library is
          null;
       end loop;
    end Wait_While_Busy;
-
 
    --Each word is 4 bytes apart
    --Base address + index * 4 = actual index of word
@@ -229,6 +233,70 @@ package body Ada_Ml_Library is
       end loop;
    end Read_Words_From_A;
 
+      procedure Write_Word_In_B (Index : Natural; Value : Word) is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (BBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      Write_Reg (Addr, Value);
+   end Write_Word_In_B;
+
+   procedure Write_Words_In_B (Src : in Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Src'Range loop
+         Write_Word_In_B (J, Src (I));
+         J := J + 1;
+      end loop;
+   end Write_Words_In_B;
+
+   function Read_Word_From_B (Index : Natural) return Word is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (BBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      return Read_Reg (Addr);
+   end Read_Word_From_B;
+
+   procedure Read_Words_From_B (Dest : out Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Dest'Range loop
+         Dest (I) := Read_Word_From_B (J);
+         J := J + 1;
+      end loop;
+   end Read_Words_From_B;
+
+   procedure Write_Word_In_C (Index : Natural; Value : Word) is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (CBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      Write_Reg (Addr, Value);
+   end Write_Word_In_C;
+
+   procedure Write_Words_In_C (Src : in Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Src'Range loop
+         Write_Word_In_C (J, Src (I));
+         J := J + 1;
+      end loop;
+   end Write_Words_In_C;
+
+   function Read_Word_From_C (Index : Natural) return Word is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (CBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      return Read_Reg (Addr);
+   end Read_Word_From_C;
+
+   procedure Read_Words_From_C(Dest : out Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Dest'Range loop
+         Dest (I) := Read_Word_From_C (J);
+         J := J + 1;
+      end loop;
+   end Read_Words_From_C;
+
    function Read_Word_From_R (Index : Natural) return Word is
       Addr : constant System.Address :=
         Add_Byte_Offset (RBASE_Addr, Unsigned_32 (Index) * 4);
@@ -245,7 +313,6 @@ package body Ada_Ml_Library is
       end loop;
    end Read_Words_From_R;
 
-
    --Procedures to Apply ReLU and Sigmoid
    --Translatied test C code
    --Sigmoid and ReLU are very similar (because they are activation functions)
@@ -260,7 +327,6 @@ package body Ada_Ml_Library is
       end loop;
    end Apply_ReLU_All_Words;
 
-
    procedure Apply_Sigmoid_All_Words (N : Natural) is
       Words : constant Natural := Tensor_Words (N);
    begin
@@ -271,7 +337,6 @@ package body Ada_Ml_Library is
          Write_Reg (CTRL_Addr, 0); --De-assert start
       end loop;
    end Apply_Sigmoid_All_Words;
-
 
    --2x2 max pooling over entire tensor
    --Produces (N/2) x (N/2) outputs in R
@@ -320,6 +385,18 @@ package body Ada_Ml_Library is
          end loop;
       end loop;
    end Apply_AvgPool_2x2_All_Words;
+
+
+     procedure Apply_Conv2D (H : Natural; W : Natural) is
+      H         : Natural; 
+      W         : Natural;
+   begin
+      Set_Dim (H * 256 + W);
+      Perform_Conv2D;
+      Wait_While_Busy;
+      write_Reg (CTRL_Addr, 0); --De-assert start
+   end Apply_Conv2D;
+
 
 
    --Print current register values to understand what is going on
