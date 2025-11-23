@@ -1,3 +1,4 @@
+
 with Interfaces;
 with System;
 
@@ -34,6 +35,10 @@ package Ada_Ml_Library is
      System'To_Address (16#9000001C#); --word index for OP_ADD/OP_SUB
    ABASE_Addr  : constant System.Address :=
      System'To_Address (16#90001000#); --Tensor A address
+   BBASE_Addr  : constant System.Address :=
+     System'To_Address (16#90002000#); --Tensor A address
+   CBASE_Addr  : constant System.Address :=
+     System'To_Address (16#90003000#); --Tensor A address
    RBASE_Addr  : constant System.Address :=
      System'To_Address (16#90004000#); --Tensor R(result) address
 
@@ -44,6 +49,7 @@ package Ada_Ml_Library is
    OP_SIG             : constant Word := 16#04#; --Sigmoid activation
    OP_RELU            : constant Word := 16#05#; --ReLU activation
    OP_NOP             : constant Word := 16#31#; --NOP
+   OP_CONV            : constant Word := 16#09#; --Conv2d 
    MAX_ALLOWED_OPCODE : constant Word := 31;  --Largest opcode possible
 
    --CTRL/STATUS bit masks
@@ -79,6 +85,7 @@ package Ada_Ml_Library is
    procedure Perform_Avg_Pool;
    procedure Perform_Sigmoid;
    procedure Perform_ReLU;
+   procedure Perform_Conv2D;
 
    function Is_Busy return Boolean;
    function Is_Done return Boolean;
@@ -91,6 +98,19 @@ package Ada_Ml_Library is
    function Read_Word_From_A (Index : Natural) return Word;
    procedure Read_Words_From_A (Dest : out Word_Array);
 
+   procedure Write_Word_In_B (Index : Natural; Value : Word);
+   procedure Write_Words_In_B (Src : in Word_Array);
+
+   function Read_Word_From_B (Index : Natural) return Word;
+   procedure Read_Words_From_B (Dest : out Word_Array);
+
+   procedure Write_Word_In_C (Index : Natural; Value : Word);
+   procedure Write_Words_In_C (Src : in Word_Array);
+
+   function Read_Word_From_C (Index : Natural) return Word;
+   procedure Read_Words_From_C (Dest : out Word_Array);
+
+
    function Read_Word_From_R (Index : Natural) return Word;
    procedure Read_Words_From_R (Dest : out Word_Array);
 
@@ -102,6 +122,10 @@ package Ada_Ml_Library is
    --Produces an (N/2)×(N/2) result into R
    procedure Apply_MaxPool_2x2_All_Words (N : Natural);
    procedure Apply_AvgPool_2x2_All_words (N : Natural);
+
+   --Conv2D
+
+   procedure Apply_Conv2D;
 
    procedure Print_Registers;
 
