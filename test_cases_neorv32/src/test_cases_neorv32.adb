@@ -36,6 +36,20 @@ procedure Test_Cases_Neorv32 is
       end loop;
    end Build_Tensor;
 
+   procedure Build_Kernel (K_TYPE : Natural; Kernel_Array : out Word_Array) is
+   begin
+      base : constant Unsigned_Byte := Int_To_Q07 (1);
+      if (K_TYPE =  = 1) then
+         Kernel_Array (0) := Pack_Four_Bytes (base, base, base, base);
+         Kernel_Array (1) := Pack_Four_Bytes (base, base, base, base);
+         Kernel_Array (2) := Pack_Four_Bytes (base, 0, 0, 0);
+      else
+         Kernel_Array (0) := Pack_Four_Bytes (0, 0, 0, 0);
+         Kernel_Array (1) := Pack_Four_Bytes (0, 0, 0, 0);
+         Kernel_Array (2) := Pack_Four_Bytes (0, 0, 0, 0);
+      end if;
+
+   end Build_Kernel;
 
    --Software ReLU
    function ReLU_Sw (X : Integer) return Integer is
@@ -58,6 +72,55 @@ procedure Test_Cases_Neorv32 is
       end if;
       return Y;
    end Sigmoid_Sw;
+
+   --Software Conv2D
+   procedure Conv2D_sw
+     (Image  : in Int_Array;
+      -- 1D flattened image, length = H*W
+      Kernel : in Int_Array;
+      -- Kernel(0..8)
+      H      : in Integer;
+      W      : in Integer;
+      Output : out Int_Array)   -- Output flattened, length = (H-2)*(W-2)
+   is
+      MAC_Acc : Integer;
+      Out_Idx : Integer := 0;
+   begin
+      -- Loop over image rows
+      for I in 0 .. H - 3 loop
+
+         -- Loop over image columns
+         for J in 0 .. W - 3 loop
+
+            MAC_Acc := 0;
+
+            -- Loop over kernel (flattened)
+            for K in 0 .. 8 loop
+
+               if K <= 2 then
+                  -- Row 0 of kernel
+                  MAC_Acc := MAC_Acc + Kernel (K) * Image ((J + K) + (I * W));
+
+               elsif K > 2 and K < 5 then
+                  -- Row 1 of kernel
+                  MAC_Acc :=
+                    MAC_Acc + Kernel (K) * Image ((J + K) + (I * W) + W);
+
+               else
+                  -- K = 5,6,7,8  → Row 2 of kernel
+                  MAC_Acc :=
+                    MAC_Acc + Kernel (K) * Image ((J + K) + (I * W) + 2 * W);
+               end if;
+
+            end loop;
+
+            -- Store output
+            Output (Out_Idx) := MAC_Acc;
+            Out_Idx := Out_Idx + 1;
+
+         end loop;
+      end loop;
+   end Conv2D_sw;
 
    --1)write/read A must match
    procedure Test_A_Window_Echo_4x4 is
@@ -115,7 +178,6 @@ procedure Test_Cases_Neorv32 is
       --Print_Tensor_Q07 ("Result Tensor", Rx, N);
       Print_Result ("Invalid opcode should keeps R unchanged", OK);
    end Test_Invalid_Opcode_Result;
-
 
    --2)Test ReLU in 8x8 on some values
    procedure Test_ReLU_8x8 is
@@ -425,6 +487,34 @@ procedure Test_Cases_Neorv32 is
       Print_Result ("AvgPool 2x2 on hard-coded 4x4", OK);
    end Test_AvgPool_2x2_4x4;
 
+   procedure Test_Conv2D_28x28_3x3 is
+      N               : constant Natural := 28;
+      H               : constant Natural := 28;
+      W               : constant Natural := 28;
+      K_TYPE          : constant Natural := 1; -- type 1, 3x3 of all 1s, type 2 TBD
+      Words           : constant Natural := Tensor_Words (H * W / 2);
+      Src             : Word_Array (0 .. Words - 1) := (others => 0);
+      Result          : Word_Array (0 .. Words - 3) := (others => 0);
+      Kernel          : Word_Array (0 .. 2) := (others => 0);
+      Out_H        : constant Natural := H - 2;
+      Words_R      : constant Natural := Tensor_Words(Out_H);
+      Result       : Int_Array(0 .. Out_H*Out_H - 1);
+      Out_Word_Tensor : Word_Array(0 .. Words_R - 1);
+   begin
+
+      Build_Tensor (Words, Src);
+      Build_Kernel (K_TYPE, Kernel);
+      Conv2D_Sw (Src, Kernel, H, W, Result);
+      Write_Reg(BASEI_Addr, 0);
+      Write_Reg(OUTI_Addr, 0);
+      Write_Words_In_A (Src);
+      Write_Words_In_B (Kernel);
+      Apply_Conv2D (H, W);
+      Read_Words_From_R (Out_Word_Tensor);
+      Print_Tensor_Q07 ("SW Conv2D Output", Result, H-2);
+      Print_Tensor_Q07 ("HW Conv2D Output", Out_Word_Tensor, H-2);
+
+   end Test_Conv2D_28x28_3x3;
 
 begin
    Uart0.Init (19200);
@@ -436,6 +526,7 @@ begin
    Test_ReLU_10x10;
    Test_MaxPool_2x2_8x8;
    Test_AvgPool_2x2_4x4;
+   Test_Conv2D_28x28_3x3;
    Put_Line ("Tests Done-------------------------");
    loop
       null;
